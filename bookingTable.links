@@ -80,8 +80,8 @@ fun htmlTable(rows) {
   open MvuAttrs;
   var htmlRows = map(htmlRow, rows);
   var htmlHead = map(htmlHead, rooms);
-  var tableHead = thead(class("table-dark border-dark "), tr(MvuAttrs.empty, td(MvuAttrs.empty, textNode("Time/RoomType")) +* MvuHTML.concat(htmlHead)));
-  var tableBody = tbody(empty, MvuHTML.concat(htmlRows));
+  var tableHead = thead(class("table-dark border-dark ") +@ style("text-align: center"), tr(MvuAttrs.empty, td(MvuAttrs.empty, textNode("Time/RoomType")) +* MvuHTML.concat(htmlHead)));
+  var tableBody = tbody(style("text-align: center"), MvuHTML.concat(htmlRows));
   table_(class("table table-bordered"), tableHead +* tableBody)
 }
 
