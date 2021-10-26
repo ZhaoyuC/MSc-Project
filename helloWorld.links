@@ -1,0 +1,27 @@
+import MvuHTML;
+import MvuAttrs;
+import Mvu;
+
+fun view(_) {
+  open MvuHTML;
+  var a0 = MvuAttrs.empty;
+  table_(a0,
+  tr(a0,
+    td(a0, textNode("Hello!")) +*
+    td(a0, textNode("Smart!")) +*
+    td(a0, textNode("World!"))) +*
+  tr(a0,
+    td(a0, textNode("Hello!")) +*
+    td(a0, textNode("Smart!")) +*
+    td(a0, textNode("World!")))
+)
+}
+
+
+fun mainPage() {
+  Mvu.runStatic("placeholder", (), view);
+  page
+    <html><body><div id="placeholder"></div></body></html>
+}
+
+serveThis(mainPage)

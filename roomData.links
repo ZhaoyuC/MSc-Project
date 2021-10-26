@@ -1,0 +1,36 @@
+typename Time = String;
+typename Room = (name: String, bookings: [Time]);
+typename Row = (time: String, roomBookings: [(name: String, booked: Bool)]);
+
+sig rooms : [Room]
+var rooms =
+    [(name = "Meeting room", bookings = ["10-12", "16-18"]),
+     (name = "Lounge", bookings = ["10-12", "14-16"]),
+     (name = "Boardroom", bookings = ["12-14", "16-18"])];
+
+var times = ["10-12", "12-14", "14-16", "16-18"];
+
+sig mkRows : ([Time], [Room]) ~> [Row]
+fun mkRows(times, rooms) {
+    # Each time is a different row
+    switch (times) {
+        # Empty list of times means empty list of rows
+        case [] -> []
+        # If you have a time x, then you need to construct a row
+        case x :: xs ->
+            # Remember that each row is of type Row, so needs a time and a list of bookings.
+            var row =
+                # The time is just x
+                (time = x,
+                # For the bookings, you look over each room, and use the "elem" function to
+                # to check whether the current time is in the bookings list.
+                 roomBookings =
+                    map(fun(room) {
+                        (name = room.name,
+                         booked = elem(x, room.bookings))
+                    }, rooms));
+            row :: mkRows(xs, rooms)
+    }
+}
+
+mkRows(times, rooms)
