@@ -4,27 +4,36 @@ import Mvu;
 
 typename Time = String;
 typename Room = (name: String, bookings: [Time]);
-typename Row = (time: String, roomBookings: [(name: String, booked: Bool)]);
-typename RoomBookings = (name: String, booked: Bool);
+typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker: String, purpose: String)]);
+typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
+typename RoomName = String;
+
+typename RoomStatus = (name: String, bookings: [Time], booker: String, purpose: String);
 
 sig rooms : [Room]
 var rooms =
     [(name = "Meeting room", bookings = ["10-12", "16-18"]),
      (name = "Lounge", bookings = ["10-12", "14-16"]),
      (name = "Boardroom", bookings = ["12-14", "16-18"])];
+     
+sig roomStatus : [RoomStatus]
+var roomStatus =
+    [(name = "Meeting room", bookings = ["10-12", "16-18"], booker = "Kevin", purpose = " project meeting"),
+     (name = "Lounge", bookings = ["10-12", "14-16"], booker = "Simon", purpose = " supervision"),
+     (name = "Boardroom", bookings = ["12-14", "16-18"], booker = "John", purpose = " project meeting")];
 
 var times = ["10-12", "12-14", "14-16", "16-18"];
 
-typename Model = ([Time], [Room]);
+typename Model = ([Time], [RoomStatus]);
 
 # Kevin TODO: Define the message SetBooking:(Room, Time, Bool)
-typename Message = [|SetBooking:(Room, Time, Bool)|];
+typename Message = [| SetBooking:(RoomName, Time, Bool) |];
 
 sig model : Model
-var model = (times, rooms);
+var model = (times, roomStatus);
 
-sig mkRows : ([Time], [Room]) ~> [Row]
-fun mkRows(times, rooms) {
+sig mkRows : ([Time], [RoomStatus]) ~> [Row]
+fun mkRows(times, roomStatus) {
     # Each time is a different row
     switch (times) {
         # Empty list of times means empty list of rows
@@ -38,24 +47,26 @@ fun mkRows(times, rooms) {
                 # For the bookings, you look over each room, and use the "elem" function to
                 # to check whether the current time is in the bookings list.
                  roomBookings =
-                    map(fun(room) {
-                        (name = room.name,
-                         booked = elem(x, room.bookings))
-                    }, rooms));
-            row :: mkRows(xs, rooms)
+                    map(fun(status) {
+                        (name = status.name,
+                         booked = elem(x, status.bookings),
+                         booker = status.booker,
+                         purpose = status.purpose)
+                    }, roomStatus));
+            row :: mkRows(xs, roomStatus)
     }
 }
 
 # Kevin TODO: Create the correct message here
-fun htmlTd(roomBooking){
+fun htmlTd(roomBooking, bookingTime){
   open MvuHTML;
   open MvuAttrs;
   if(roomBooking.booked){
-    td(class("table-bordered border-dark table-active table-danger"), textNode("booked") +*
-       button(onClick(fun() { SetBooking(Room, Time, false) }), textNode("Set unbooked")))
+    td(class("table-bordered border-dark table-active table-danger"), textNode(roomBooking.booker) +* textNode(roomBooking.purpose) +*
+       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")))
   }else{
     td(class("table-bordered border-dark table-danger"), textNode("") +*
-       button(onClick(fun() { SetBooking(Room, Time, true) }), textNode("Set booked")))
+       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
   }
 }
 
@@ -71,7 +82,7 @@ fun htmlRow(row) {
   open MvuAttrs;
   var roomBookings = row.roomBookings;
   var time =row.time;
-  var htmlTd = map(htmlTd, roomBookings);
+  var htmlTd = map(fun(roomBooking){htmlTd(roomBooking, time)}, roomBookings);
   tr(class("table-bordered border-dark table-warning"), td(class("table-bordered border-dark"), textNode(time)) +* MvuHTML.concat(htmlTd))
 }
 
@@ -87,8 +98,8 @@ fun htmlTable(rows) {
 }
 
 sig view : (Model) ~> MvuHTML.HTML(Message)
-fun view((times, rooms)) {
-  var rows = mkRows(times, rooms);
+fun view((times, roomStatus)) {
+  var rows = mkRows(times, roomStatus);
   htmlTable(rows)
 }
 
@@ -100,12 +111,23 @@ fun view((times, rooms)) {
 #    To add `time` to a list: time :: times
 #    To remove `time` from a list: filter(fun(t) { t <> time }, times)
 
+sig updateRoom : (RoomStatus, Time, Bool) ~> RoomStatus
+fun updateRoom(roomStatus, time, booked){
+  if(booked){
+    var newBookings = time :: roomStatus.bookings;
+    (roomStatus with bookings = newBookings)
+  }else{
+    (roomStatus with bookings = filter(fun(t){t <> time}, roomStatus.bookings))
+  }
+}
+
+
 sig updt : (Message, Model) ~> Model
-fun updt(msg, model) {
+fun updt(msg, (times, roomStatus)) {
     switch(msg){
-      case SetBooking(Room, Time, Bool) ->
-        var newRooms = map(fun(r){ if(r.name == name){Room} else {r} }, rooms);
-        (model with rooms = newRooms)
+      case SetBooking(roomName, bookingTime, booked) ->
+        var newRooms = map(fun(r){ if(r.name == roomName){updateRoom(r, bookingTime, booked)} else {r} }, roomStatus);
+        (times, newRooms)
     }
 
 }
