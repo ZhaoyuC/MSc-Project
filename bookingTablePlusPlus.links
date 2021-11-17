@@ -1,0 +1,239 @@
+import MvuHTML;
+import MvuAttrs;
+import Mvu;
+
+
+typename Time = String;
+typename Booking = (time: Time, booker: String, purpose: String);
+typename Room = (name: String, bookings: [Booking]);
+
+# STEP 1: Design a database (remember that tables can't contain lists)
+
+# table room = ...;
+# table booking = ...;
+# table roomToBooking  = ...; 
+
+# table room = (name : String);
+# table booking = (time: Time);
+# table roomToBooking = (name : String, time : Time, booker: String, purpose: String);
+
+var db = database "links" "postgresql" ":5432:kevin:";
+
+var tableRoom = table "room" 
+  with (name : String) from db;
+var tableBooking = table "booking" 
+  with (time : Time) from db;
+var tableRoomToBooking = table "roomToBooking" 
+  with (name : String, time : Time, booker : String, purpose : String) from db;
+
+# ---
+
+# room = (...)
+# booking = (1, "12-1", "Simon", "Supervision")
+# roomToBooking = ("Meeting room", 1), ("Meeting room", 2)
+
+# Step 2: Make SQL for your tables
+# https://www.w3schools.com/sql/sql_create_table.asp
+
+# CREATE TABLE ...;
+
+# CREATE TABLE Room (
+#     name varchar(255)
+# );
+
+# CREATE TABLE Booking (
+#     time varchar(255),
+# );
+
+# CREATE TABLE RoomToBooking (
+#     name varchar(255),
+#     time varchar(255),
+#     booker varchar(255),
+#     purpose varchar(255)
+# );
+
+# Step 3: Make Links "table" definitions for all of your tables
+
+#   table "items" with (i : Int, name : String)
+#    from database "draggable"
+
+
+# Step 4: Query the tables and construct your model
+
+# sig queryRoom : (table) ~> [String]
+fun queryRoom(tableRoom) {
+  for (t <-- tableRoom)
+  where (t.name >= 0)
+    [(name = t.name)]
+}
+
+# sig queryBooking : (table) ~> [(Time, String, String)]
+fun queryBooking(tableBooking) {
+  for (t <-- tableBooking)
+  where (t.time >= 0)
+    [(t.time, t.booker, t.purpose)]
+}
+
+# sig queryRoomToBooking : (table) ~> [(String, String)]
+fun queryRoom(tableRoomToBooking) {
+  for (t <-- tableRoomToBooking)
+  where (t.name >= 0)
+    [(t.name, t.time)]
+}
+
+typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker: String, purpose: String)]);
+typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
+typename RoomName = String;
+
+var asd = queryRoom(tableRoom);
+
+sig rooms : [Room]
+var rooms =
+    [(name = "Meeting room", bookings = [(time="10-12", booker="Kevin", purpose="Supervision meeting")]),
+     (name = selectElem(asd, 0).name, bookings = []),
+     (name = "Boardroom", bookings = [(time="16-18",booker="Simon", purpose="Review meeting")])];
+ 
+
+var times = ["10-12", "12-14", "14-16", "16-18"];
+
+typename Model = ([Time], [Room]);
+
+# Kevin TODO: Define the message SetBooking:(Room, Time, Bool)
+typename Message = [| SetBooking:(RoomName, Time, Bool) |];
+
+sig model : Model
+var model = (times, rooms);
+
+
+sig getBookingInfo : ([Booking], Time) ~> Maybe ((String, String))
+fun getBookingInfo(bookings, time) {
+  switch (bookings) {
+    case [] -> Nothing
+    case x :: xs ->
+      if (x.time == time) {
+        Just (x.booker, x.purpose)
+      } else {
+        getBookingInfo(xs, time)
+      }
+  }
+}
+
+sig mkRows : ([Time], [Room]) ~> [Row]
+fun mkRows(times, roomStatus) {
+    # Each time is a different row
+    switch (times) {
+        # Empty list of times means empty list of rows
+        case [] -> []
+        # If you have a time x, then you need to construct a row
+        case x :: xs ->
+            # Remember that each row is of type Row, so needs a time and a list of bookings.
+            var row =
+                # The time is just x
+                (time = x,
+                # For the bookings, you look over each room, and use the "elem" function to
+                # to check whether the current time is in the bookings list.
+                 roomBookings =
+                    map(fun(status) {
+                        switch (getBookingInfo(status.bookings, x)) {
+                           case Nothing -> 
+                             (name = status.name,
+                              booked = false,
+                              booker = "",
+                              purpose = "")
+                           case Just((booker, purpose)) -> 
+                             (name = status.name,
+                              booked = true,
+                              booker = booker,
+                              purpose = purpose)
+                        }
+                    }, roomStatus));
+            row :: mkRows(xs, roomStatus)
+    }
+}
+
+# Kevin TODO: Create the correct message here
+fun htmlTd(roomBooking, bookingTime){
+  open MvuHTML;
+  open MvuAttrs;
+  if(roomBooking.booked){
+    td(class("table-bordered border-dark table-active table-danger"), textNode(roomBooking.booker) +* textNode(roomBooking.purpose) +*
+       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")))
+  }else{
+    td(class("table-bordered border-dark table-danger"), textNode("") +*
+       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
+  }
+}
+
+fun htmlHead(room){
+  open MvuHTML;
+  open MvuAttrs;
+  td(class("table-align align-middle"), textNode(room.name))
+}
+
+sig htmlRow : (Row) ~> MvuHTML.HTML(Message)
+fun htmlRow(row) {
+  open MvuHTML;
+  open MvuAttrs;
+  var roomBookings = row.roomBookings;
+  var time =row.time;
+  var htmlTd = map(fun(roomBooking){htmlTd(roomBooking, time)}, roomBookings);
+  tr(class("table-bordered border-dark table-warning"), td(class("table-bordered border-dark"), textNode(time)) +* MvuHTML.concat(htmlTd))
+}
+
+sig htmlTable : ([Row]) ~> MvuHTML.HTML(Message)
+fun htmlTable(rows) {
+  open MvuHTML;
+  open MvuAttrs;
+  var htmlRows = map(htmlRow, rows);
+  var htmlHead = map(htmlHead, rooms);
+  var tableHead = thead(class("table-dark border-dark ") +@ style("text-align: center"), tr(MvuAttrs.empty, td(MvuAttrs.empty, textNode("Time/RoomType")) +* MvuHTML.concat(htmlHead)));
+  var tableBody = tbody(style("text-align: center"), MvuHTML.concat(htmlRows));
+  table_(class("table table-bordered"), tableHead +* tableBody)
+}
+
+sig view : (Model) ~> MvuHTML.HTML(Message)
+fun view((times, roomStatus)) {
+  var rows = mkRows(times, roomStatus);
+  htmlTable(rows)
+}
+
+## Kevin TODO: Write the update function
+# 1. Case split on the message
+# 2. Construct a list with a modified room
+#    Model: ([Time], [Room])
+#    To create an updated list of rooms, only when r.name matches rName: map(fun (r) { if (r.name == rName) { ... } else { r }  }, rooms)
+#    To add `time` to a list: time :: times
+#    To remove `time` from a list: filter(fun(t) { t <> time }, times)
+
+sig updateRoom : (Room, Time, Bool) ~> Room
+fun updateRoom(roomStatus, time, booked){
+  if(booked){
+    var newBookings = (time=time, purpose="", booker="") :: roomStatus.bookings;
+    (roomStatus with bookings = newBookings)
+  }else{
+    (roomStatus with bookings = filter(fun(t){t.time <> time}, roomStatus.bookings))
+  }
+}
+
+
+sig updt : (Message, Model) ~> Model
+fun updt(msg, (times, roomStatus)) {
+    switch(msg){
+      case SetBooking(roomName, bookingTime, booked) ->
+        var newRooms = map(fun(r){ if(r.name == roomName){updateRoom(r, bookingTime, booked)} else {r} }, roomStatus);
+        (times, newRooms)
+    }
+
+}
+
+fun mainPage() {
+  Mvu.runSimple("placeholder", model, view, updt);
+  page
+    <html>
+    <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous"></link>
+    </head>
+    <body><div id="placeholder"></div></body></html>
+}
+
+serveThis(mainPage)
