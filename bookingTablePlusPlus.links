@@ -17,14 +17,14 @@ typename Room = (name: String, bookings: [Booking]);
 # table booking = (time: Time);
 # table roomToBooking = (name : String, time : Time, booker: String, purpose: String);
 
-var db = database "links" "postgresql" ":5432:kevin:";
+var db = database "bookings";
 
 var tableRoom = table "room" 
-  with (name : String) from db;
+  with (roomID : int, name : String) from db;
 var tableBooking = table "booking" 
-  with (time : Time) from db;
+  with (bookingID : int, time : Time, booker : String, purpose : String) from db;
 var tableRoomToBooking = table "roomToBooking" 
-  with (name : String, time : Time, booker : String, purpose : String) from db;
+  with (roomID : int, bookingID : int) from db;
 
 # ---
 
@@ -38,18 +38,20 @@ var tableRoomToBooking = table "roomToBooking"
 # CREATE TABLE ...;
 
 # CREATE TABLE Room (
+#     roomID serial,
 #     name varchar(255)
 # );
 
 # CREATE TABLE Booking (
-#     time varchar(255),
-# );
-
-# CREATE TABLE RoomToBooking (
-#     name varchar(255),
+#     bookingID serial,
 #     time varchar(255),
 #     booker varchar(255),
 #     purpose varchar(255)
+# );
+
+# CREATE TABLE RoomToBooking (
+#     roomID int,
+#     bookingID int
 # );
 
 # Step 3: Make Links "table" definitions for all of your tables
@@ -62,23 +64,26 @@ var tableRoomToBooking = table "roomToBooking"
 
 # sig queryRoom : (table) ~> [String]
 fun queryRoom(tableRoom) {
-  for (t <-- tableRoom)
-  where (t.name >= 0)
-    [(name = t.name)]
+  query {
+    for (t <-- tableRoom)
+      [(roomID = t.roomID, name = t.name)]
+  }
 }
 
 # sig queryBooking : (table) ~> [(Time, String, String)]
 fun queryBooking(tableBooking) {
-  for (t <-- tableBooking)
-  where (t.time >= 0)
-    [(t.time, t.booker, t.purpose)]
+  query {
+    for (t <-- tableBooking)
+      [(bookingID = t.bookingID, time =t.time, booker = t.booker, purpose = t.purpose)]
+  }
 }
 
 # sig queryRoomToBooking : (table) ~> [(String, String)]
-fun queryRoom(tableRoomToBooking) {
-  for (t <-- tableRoomToBooking)
-  where (t.name >= 0)
-    [(t.name, t.time)]
+fun queryRoomToBooking(tableRoomToBooking) {
+  query {
+    for (t <-- tableRoomToBooking)
+      [(roomID = t.roomID, bookingID = t.bookingID)]
+  }
 }
 
 typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker: String, purpose: String)]);
@@ -95,6 +100,20 @@ var rooms =
  
 
 var times = ["10-12", "12-14", "14-16", "16-18"];
+
+#sig rooms : [Room]
+#var rooms = [];
+
+#sig times = [String]
+#var times = [];
+
+#for(t <- queryBooking(tableBooking))
+#  t.time :: times;
+
+#for(t <- queryRoom(tableRoom))
+#  (name = t.name, bookings =[]) :: rooms;
+
+
 
 typename Model = ([Time], [Room]);
 
