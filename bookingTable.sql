@@ -1,16 +1,16 @@
-CREATE TABLE Room (
-    roomID serial,
+CREATE TABLE room (
+    roomid serial,
     name varchar(255)
 );
 
-CREATE TABLE Booking (
-    bookingID serial,
+CREATE TABLE booking (
+    bookingid serial,
     time varchar(255),
     booker varchar(255),
     purpose varchar(255)
 );
 
-CREATE TABLE RoomToBooking (
-    roomID int,
-    bookingID int
+CREATE TABLE roomToBooking (
+    roomid int,
+    bookingid int
 );

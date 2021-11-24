@@ -20,11 +20,11 @@ typename Room = (name: String, bookings: [Booking]);
 var db = database "bookings";
 
 var tableRoom = table "room" 
-  with (roomID : int, name : String) from db;
+  with (roomid : int, name : String) from db;
 var tableBooking = table "booking" 
   with (bookingID : int, time : Time, booker : String, purpose : String) from db;
 var tableRoomToBooking = table "roomToBooking" 
-  with (roomID : int, bookingID : int) from db;
+  with (roomid : int, bookingID : int) from db;
 
 # ---
 
@@ -38,7 +38,7 @@ var tableRoomToBooking = table "roomToBooking"
 # CREATE TABLE ...;
 
 # CREATE TABLE Room (
-#     roomID serial,
+#     roomid serial,
 #     name varchar(255)
 # );
 
@@ -50,7 +50,7 @@ var tableRoomToBooking = table "roomToBooking"
 # );
 
 # CREATE TABLE RoomToBooking (
-#     roomID int,
+#     roomid int,
 #     bookingID int
 # );
 
@@ -66,7 +66,7 @@ var tableRoomToBooking = table "roomToBooking"
 fun queryRoom(tableRoom) {
   query {
     for (t <-- tableRoom)
-      [(roomID = t.roomID, name = t.name)]
+      [(roomid = t.roomid, name = t.name)]
   }
 }
 
@@ -82,7 +82,7 @@ fun queryBooking(tableBooking) {
 fun queryRoomToBooking(tableRoomToBooking) {
   query {
     for (t <-- tableRoomToBooking)
-      [(roomID = t.roomID, bookingID = t.bookingID)]
+      [(roomid = t.roomid, bookingID = t.bookingID)]
   }
 }
 
@@ -90,28 +90,54 @@ typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker
 typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
 typename RoomName = String;
 
-var asd = queryRoom(tableRoom);
+#var asd = queryRoom(tableRoom);
 
-sig rooms : [Room]
-var rooms =
-    [(name = "Meeting room", bookings = [(time="10-12", booker="Kevin", purpose="Supervision meeting")]),
-     (name = selectElem(asd, 0).name, bookings = []),
-     (name = "Boardroom", bookings = [(time="16-18",booker="Simon", purpose="Review meeting")])];
+# sig rooms : [Room]
+# var rooms =
+#    [(name = "Meeting room", bookings = [(time="10-12", booker="Kevin", purpose="Supervision meeting")]),
+#     (name = selectElem(asd, 0).name, bookings = []),
+#     (name = "Boardroom", bookings = [(time="16-18",booker="Simon", purpose="Review meeting")])];
  
 
-var times = ["10-12", "12-14", "14-16", "16-18"];
+# var times = ["10-12", "12-14", "14-16", "16-18"];
 
-#sig rooms : [Room]
-#var rooms = [];
+sig rooms : [Room]
+var rooms = [];
 
-#sig times = [String]
-#var times = [];
+sig times : [String]
+var times = [];
 
-#for(t <- queryBooking(tableBooking))
-#  t.time :: times;
+fun getRoomData(){
+  for(t <- queryRoom(tableRoom))
+    (name = t.name, bookings = []) :: rooms;
+}
 
-#for(t <- queryRoom(tableRoom))
-#  (name = t.name, bookings =[]) :: rooms;
+fun getTimeData(){
+  for(t <- queryBooking(tableBooking))
+    t.time :: times;
+}
+
+fun getData(){
+  var roomData = queryRoom(tableRoom);
+  var bookingData = queryBooking(tableBooking);
+  var roomToBookingData = queryRoomToBooking(tableRoomToBooking);
+  getRoomData();
+  getTimeData();
+
+  for(s <- roomToBookingData){
+      for(t <- roomData){
+
+        # (time= , booker= , purpose=)
+        () :: selectElem(rooms, t.roomid).bookings; 
+        
+      }
+  }
+
+#  for(t <- queryRoomToBooking(tableRoomToBooking))
+#    for(t.roomid <- queryRoom)
+#      [(roomid = t.roomid, bookingid =t.bookingid)];
+}
+
 
 
 
