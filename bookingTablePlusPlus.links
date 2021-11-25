@@ -37,23 +37,6 @@ var tableRoomToBooking = table "roomtobooking"
 
 # CREATE TABLE ...;
 
-# CREATE TABLE Room (
-#     roomid serial,
-#     name varchar(255)
-# );
-
-# CREATE TABLE Booking (
-#     bookingID serial,
-#     time varchar(255),
-#     booker varchar(255),
-#     purpose varchar(255)
-# );
-
-# CREATE TABLE RoomToBooking (
-#     roomid int,
-#     bookingID int
-# );
-
 # Step 3: Make Links "table" definitions for all of your tables
 
 #   table "items" with (i : Int, name : String)
@@ -90,18 +73,6 @@ typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker
 typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
 typename RoomName = String;
 
-#var asd = queryRoom(tableRoom);
-
-# sig rooms : [Room]
-# var rooms =
-#    [(name = "Meeting room", bookings = [(time="10-12", booker="Kevin", purpose="Supervision meeting")]),
-#     (name = selectElem(asd, 0).name, bookings = []),
-#     (name = "Boardroom", bookings = [(time="16-18",booker="Simon", purpose="Review meeting")])];
- 
-
-# var times = ["10-12", "12-14", "14-16", "16-18"];
-
-
 fun getBookings(i,tableRoomToBooking, tableBooking){
   query{
     for(rtb <-- tableRoomToBooking)
@@ -125,36 +96,11 @@ fun getTimes(){
     r.time :: times
 }
 
-
 sig rooms : [Room]
 var rooms = getRooms(tableRoom, tableRoomToBooking, tableBooking);
 
 sig times : [String]
 var times = getTimes();
-
-#fun getData(){
-#  var roomData = queryRoom(tableRoom);
-#  var bookingData = queryBooking(tableBooking);
-#  var roomToBookingData = queryRoomToBooking(tableRoomToBooking);
-#  getRoomData();
-#  getTimeData();
-
-#  for(s <- roomToBookingData){
-#      for(t <- roomData){
-
-#         (time= , booker= , purpose=)
-#        () :: selectElem(rooms, t.roomid).bookings; 
-        
-#      }
-#  }
-
-#  for(t <- queryRoomToBooking(tableRoomToBooking))
-#    for(t.roomid <- queryRoom)
-#      [(roomid = t.roomid, bookingid =t.bookingid)];
-#}
-
-
-
 
 typename Model = ([Time], [Room]);
 
