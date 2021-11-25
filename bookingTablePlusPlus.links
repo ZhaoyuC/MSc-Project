@@ -20,11 +20,11 @@ typename Room = (name: String, bookings: [Booking]);
 var db = database "bookings";
 
 var tableRoom = table "room" 
-  with (roomid : int, name : String) from db;
+  with (roomid : Int, name : String) from db;
 var tableBooking = table "booking" 
-  with (bookingID : int, time : Time, booker : String, purpose : String) from db;
-var tableRoomToBooking = table "roomToBooking" 
-  with (roomid : int, bookingID : int) from db;
+  with (bookingid : Int, time : Time, booker : String, purpose : String) from db;
+var tableRoomToBooking = table "roomtobooking" 
+  with (roomid : Int, bookingid : Int) from db;
 
 # ---
 
@@ -74,7 +74,7 @@ fun queryRoom(tableRoom) {
 fun queryBooking(tableBooking) {
   query {
     for (t <-- tableBooking)
-      [(bookingID = t.bookingID, time =t.time, booker = t.booker, purpose = t.purpose)]
+      [(bookingid = t.bookingid, time =t.time, booker = t.booker, purpose = t.purpose)]
   }
 }
 
@@ -82,7 +82,7 @@ fun queryBooking(tableBooking) {
 fun queryRoomToBooking(tableRoomToBooking) {
   query {
     for (t <-- tableRoomToBooking)
-      [(roomid = t.roomid, bookingID = t.bookingID)]
+      [(roomid = t.roomid, bookingid = t.bookingid)]
   }
 }
 
@@ -101,42 +101,57 @@ typename RoomName = String;
 
 # var times = ["10-12", "12-14", "14-16", "16-18"];
 
+
+fun getBookings(i,tableRoomToBooking, tableBooking){
+  query{
+    for(rtb <-- tableRoomToBooking)
+    where(rtb.roomid == i)
+      for(b <-- tableBooking)
+      where(b.bookingid == rtb.bookingid)
+      [(time = b.time, booker = b.booker, purpose = b.purpose)]
+  }
+}
+
+fun getRooms(tableRoom, tableRoomToBooking, tableBooking){
+  var rooms = [];
+  for(r <- queryRoom(tableRoom))
+    (name = r.name, bookings = getBookings(r.roomid, tableRoomToBooking, tableBooking)) :: rooms
+
+}
+
+fun getTimes(){
+  var times = [];
+  for(r <- queryBooking(tableBooking))
+    r.time :: times
+}
+
+
 sig rooms : [Room]
-var rooms = [];
+var rooms = getRooms(tableRoom, tableRoomToBooking, tableBooking);
 
 sig times : [String]
-var times = [];
+var times = getTimes();
 
-fun getRoomData(){
-  for(t <- queryRoom(tableRoom))
-    (name = t.name, bookings = []) :: rooms;
-}
+#fun getData(){
+#  var roomData = queryRoom(tableRoom);
+#  var bookingData = queryBooking(tableBooking);
+#  var roomToBookingData = queryRoomToBooking(tableRoomToBooking);
+#  getRoomData();
+#  getTimeData();
 
-fun getTimeData(){
-  for(t <- queryBooking(tableBooking))
-    t.time :: times;
-}
+#  for(s <- roomToBookingData){
+#      for(t <- roomData){
 
-fun getData(){
-  var roomData = queryRoom(tableRoom);
-  var bookingData = queryBooking(tableBooking);
-  var roomToBookingData = queryRoomToBooking(tableRoomToBooking);
-  getRoomData();
-  getTimeData();
-
-  for(s <- roomToBookingData){
-      for(t <- roomData){
-
-        # (time= , booker= , purpose=)
-        () :: selectElem(rooms, t.roomid).bookings; 
+#         (time= , booker= , purpose=)
+#        () :: selectElem(rooms, t.roomid).bookings; 
         
-      }
-  }
+#      }
+#  }
 
 #  for(t <- queryRoomToBooking(tableRoomToBooking))
 #    for(t.roomid <- queryRoom)
 #      [(roomid = t.roomid, bookingid =t.bookingid)];
-}
+#}
 
 
 
