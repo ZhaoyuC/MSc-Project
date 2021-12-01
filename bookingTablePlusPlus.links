@@ -4,7 +4,8 @@ import Mvu;
 
 
 typename Time = String;
-typename Booking = (time: Time, booker: String, purpose: String);
+typename BookingID = Int;
+typename Booking = (bookingID: BookingID, time: Time, booker: String, purpose: String);
 typename Room = (name: String, bookings: [Booking]);
 
 # STEP 1: Design a database (remember that tables can't contain lists)
@@ -69,7 +70,7 @@ fun queryRoomToBooking(tableRoomToBooking) {
   }
 }
 
-typename Row = (time: String, roomBookings: [(name: String, booked: Bool, booker: String, purpose: String)]);
+typename Row = (time: String, roomBookings: [(bookingID: BookingID, name: String, booked: Bool, booker: String, purpose: String)]);
 typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
 typename RoomName = String;
 
@@ -79,7 +80,7 @@ fun getBookings(i,tableRoomToBooking, tableBooking){
     where(rtb.roomid == i)
       for(b <-- tableBooking)
       where(b.bookingid == rtb.bookingid)
-      [(time = b.time, booker = b.booker, purpose = b.purpose)]
+      [(bookingID = b.bookingid, time = b.time, booker = b.booker, purpose = b.purpose)]
   }
 }
 
@@ -96,6 +97,22 @@ fun getTimes(){
     r.time :: times
 }
 
+
+fun deleteBooking(bookingID) server{
+  # Delete from tableBooking
+  delete (x <-- tableBooking)
+    where ( x.bookingid == bookingID);
+  # Delete from tableRoomToBooking
+  delete (x <-- tableRoomToBooking)
+    where ( x.bookingid == bookingID)
+}
+
+#fun updateBooking(tableBooking, i, time, booker, purpose){
+#    update (("time", "booker", "purpose") <-- tableBooking)
+#    where(tableBooking.bookingid == i)
+#      set (tableBooking.time=time, tableBooking.booker=booker, tableBooking.purpose=purpose)
+#}
+
 sig rooms : [Room]
 var rooms = getRooms(tableRoom, tableRoomToBooking, tableBooking);
 
@@ -105,19 +122,19 @@ var times = getTimes();
 typename Model = ([Time], [Room]);
 
 # Kevin TODO: Define the message SetBooking:(Room, Time, Bool)
-typename Message = [| SetBooking:(RoomName, Time, Bool) |];
+typename Message = [| DeleteBooking:(BookingID) |];
 
 sig model : Model
 var model = (times, rooms);
 
 
-sig getBookingInfo : ([Booking], Time) ~> Maybe ((String, String))
+sig getBookingInfo : ([Booking], Time) ~> Maybe (Booking)
 fun getBookingInfo(bookings, time) {
   switch (bookings) {
     case [] -> Nothing
     case x :: xs ->
       if (x.time == time) {
-        Just (x.booker, x.purpose)
+        Just (x)
       } else {
         getBookingInfo(xs, time)
       }
@@ -142,15 +159,17 @@ fun mkRows(times, roomStatus) {
                     map(fun(status) {
                         switch (getBookingInfo(status.bookings, x)) {
                            case Nothing -> 
-                             (name = status.name,
+                             (bookingID = (-1),
+                              name = status.name,
                               booked = false,
                               booker = "",
                               purpose = "")
-                           case Just((booker, purpose)) -> 
-                             (name = status.name,
+                           case Just(x) -> 
+                             (bookingID = x.bookingID,
+                              name = status.name,
                               booked = true,
-                              booker = booker,
-                              purpose = purpose)
+                              booker = x.booker,
+                              purpose = x.purpose)
                         }
                     }, roomStatus));
             row :: mkRows(xs, roomStatus)
@@ -163,10 +182,11 @@ fun htmlTd(roomBooking, bookingTime){
   open MvuAttrs;
   if(roomBooking.booked){
     td(class("table-bordered border-dark table-active table-danger"), textNode(roomBooking.booker) +* textNode(roomBooking.purpose) +*
-       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")))
+       #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")) +*
+       button(onClick(fun() { DeleteBooking(roomBooking.bookingID) }), textNode("Delete Booking")))
   }else{
-    td(class("table-bordered border-dark table-danger"), textNode("") +*
-       button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
+    td(class("table-bordered border-dark table-danger"), textNode("") ) 
+       #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
   }
 }
 
@@ -211,23 +231,21 @@ fun view((times, roomStatus)) {
 #    To add `time` to a list: time :: times
 #    To remove `time` from a list: filter(fun(t) { t <> time }, times)
 
-sig updateRoom : (Room, Time, Bool) ~> Room
-fun updateRoom(roomStatus, time, booked){
-  if(booked){
-    var newBookings = (time=time, purpose="", booker="") :: roomStatus.bookings;
-    (roomStatus with bookings = newBookings)
-  }else{
-    (roomStatus with bookings = filter(fun(t){t.time <> time}, roomStatus.bookings))
-  }
+
+
+sig deleteBookingFromRoom : (Room, BookingID) ~> Room
+fun deleteBookingFromRoom(room, bookingID) {
+  (room with bookings = filter(fun(b){ b.bookingID <> bookingID }, room.bookings))
 }
 
-
 sig updt : (Message, Model) ~> Model
-fun updt(msg, (times, roomStatus)) {
+fun updt(msg, (times, room)) {
     switch(msg){
-      case SetBooking(roomName, bookingTime, booked) ->
-        var newRooms = map(fun(r){ if(r.name == roomName){updateRoom(r, bookingTime, booked)} else {r} }, roomStatus);
+      case DeleteBooking(bookingID) ->
+        deleteBooking(bookingID);
+        var newRooms = map(fun(r){ deleteBookingFromRoom(r, bookingID) }, room);
         (times, newRooms)
+        
     }
 
 }
