@@ -12,7 +12,7 @@ typename Room = (name: String, bookings: [Booking]);
 
 # table room = ...;
 # table booking = ...;
-# table roomToBooking  = ...; 
+# table roomToBooking  = ...;
 
 # table room = (name : String);
 # table booking = (time: Time);
@@ -20,11 +20,11 @@ typename Room = (name: String, bookings: [Booking]);
 
 var db = database "bookings";
 
-var tableRoom = table "room" 
+var tableRoom = table "room"
   with (roomid : Int, name : String) from db;
-var tableBooking = table "booking" 
+var tableBooking = table "booking"
   with (bookingid : Int, time : Time, booker : String, purpose : String) from db;
-var tableRoomToBooking = table "roomtobooking" 
+var tableRoomToBooking = table "roomtobooking"
   with (roomid : Int, bookingid : Int) from db;
 
 # ---
@@ -91,11 +91,7 @@ fun getRooms(tableRoom, tableRoomToBooking, tableBooking){
 
 }
 
-fun getTimes(){
-  var times = [];
-  for(r <- queryBooking(tableBooking))
-    r.time :: times
-}
+
 
 
 fun deleteBooking(bookingID) server{
@@ -113,20 +109,10 @@ fun deleteBooking(bookingID) server{
 #      set (tableBooking.time=time, tableBooking.booker=booker, tableBooking.purpose=purpose)
 #}
 
-sig rooms : [Room]
-var rooms = getRooms(tableRoom, tableRoomToBooking, tableBooking);
-
-sig times : [String]
-var times = getTimes();
-
 typename Model = ([Time], [Room]);
 
 # Kevin TODO: Define the message SetBooking:(Room, Time, Bool)
 typename Message = [| DeleteBooking:(BookingID) |];
-
-sig model : Model
-var model = (times, rooms);
-
 
 sig getBookingInfo : ([Booking], Time) ~> Maybe (Booking)
 fun getBookingInfo(bookings, time) {
@@ -158,13 +144,13 @@ fun mkRows(times, roomStatus) {
                  roomBookings =
                     map(fun(status) {
                         switch (getBookingInfo(status.bookings, x)) {
-                           case Nothing -> 
+                           case Nothing ->
                              (bookingID = (-1),
                               name = status.name,
                               booked = false,
                               booker = "",
                               purpose = "")
-                           case Just(x) -> 
+                           case Just(x) ->
                              (bookingID = x.bookingID,
                               name = status.name,
                               booked = true,
@@ -185,7 +171,7 @@ fun htmlTd(roomBooking, bookingTime){
        #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")) +*
        button(onClick(fun() { DeleteBooking(roomBooking.bookingID) }), textNode("Delete Booking")))
   }else{
-    td(class("table-bordered border-dark table-danger"), textNode("") ) 
+    td(class("table-bordered border-dark table-danger"), textNode("") )
        #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
   }
 }
@@ -206,8 +192,8 @@ fun htmlRow(row) {
   tr(class("table-bordered border-dark table-warning"), td(class("table-bordered border-dark"), textNode(time)) +* MvuHTML.concat(htmlTd))
 }
 
-sig htmlTable : ([Row]) ~> MvuHTML.HTML(Message)
-fun htmlTable(rows) {
+sig htmlTable : ([Room], [Row]) ~> MvuHTML.HTML(Message)
+fun htmlTable(rooms, rows) {
   open MvuHTML;
   open MvuAttrs;
   var htmlRows = map(htmlRow, rows);
@@ -220,7 +206,7 @@ fun htmlTable(rows) {
 sig view : (Model) ~> MvuHTML.HTML(Message)
 fun view((times, roomStatus)) {
   var rows = mkRows(times, roomStatus);
-  htmlTable(rows)
+  htmlTable(roomStatus, rows)
 }
 
 ## Kevin TODO: Write the update function
@@ -245,12 +231,16 @@ fun updt(msg, (times, room)) {
         deleteBooking(bookingID);
         var newRooms = map(fun(r){ deleteBookingFromRoom(r, bookingID) }, room);
         (times, newRooms)
-        
+
     }
 
 }
 
 fun mainPage() {
+  var rooms : [Room] = getRooms(tableRoom, tableRoomToBooking, tableBooking);
+  var times : [String] = ["10-12", "12-14", "14-16", "16-18"];
+  var model : Model = (times, rooms);
+
   Mvu.runSimple("placeholder", model, view, updt);
   page
     <html>
