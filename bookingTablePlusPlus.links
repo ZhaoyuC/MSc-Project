@@ -4,9 +4,12 @@ import Mvu;
 
 
 typename Time = String;
+typename RoomID = Int;
 typename BookingID = Int;
+typename Booker = String;
+typename Purpose = String;
 typename Booking = (bookingID: BookingID, time: Time, booker: String, purpose: String);
-typename Room = (name: String, bookings: [Booking]);
+typename Room = (name: String, roomID: Int, bookings: [Booking]);
 
 # STEP 1: Design a database (remember that tables can't contain lists)
 
@@ -23,7 +26,7 @@ var db = database "bookings";
 var tableRoom = table "room"
   with (roomid : Int, name : String) from db;
 var tableBooking = table "booking"
-  with (bookingid : Int, time : Time, booker : String, purpose : String) from db;
+  with (bookingid : Int, time : Time, booker : String, purpose : String) where bookingid readonly from db;
 var tableRoomToBooking = table "roomtobooking"
   with (roomid : Int, bookingid : Int) from db;
 
@@ -70,7 +73,7 @@ fun queryRoomToBooking(tableRoomToBooking) {
   }
 }
 
-typename Row = (time: String, roomBookings: [(bookingID: BookingID, name: String, booked: Bool, booker: String, purpose: String)]);
+typename Row = (time: String, roomBookings: [(roomID: RoomID,  bookingID: BookingID, name: String, booked: Bool, booker: String, purpose: String)]);
 typename RoomBookings = (name: String, booked: Bool, booker: String, purpose: String);
 typename RoomName = String;
 
@@ -87,7 +90,7 @@ fun getBookings(i,tableRoomToBooking, tableBooking){
 fun getRooms(tableRoom, tableRoomToBooking, tableBooking){
   var rooms = [];
   for(r <- queryRoom(tableRoom))
-    (name = r.name, bookings = getBookings(r.roomid, tableRoomToBooking, tableBooking)) :: rooms
+    (roomID = r.roomid, name = r.name, bookings = getBookings(r.roomid, tableRoomToBooking, tableBooking)) :: rooms
 
 }
 
@@ -109,10 +112,13 @@ fun deleteBooking(bookingID) server{
 #      set (tableBooking.time=time, tableBooking.booker=booker, tableBooking.purpose=purpose)
 #}
 
-typename Model = ([Time], [Room]);
+typename FormData = (roomid: Int, time: Time, booker: String, purpose: String);
+typename Model = ([Time], [Room], Maybe(FormData));
 
 # Kevin TODO: Define the message SetBooking:(Room, Time, Bool)
-typename Message = [| DeleteBooking:(BookingID) |];
+typename Message = [| DeleteBooking:(BookingID) | InsertBooking:(RoomID, Time) 
+                    | UpdateBooker:(Booker) | UpdatePurpose:(Purpose)
+                    | Submit |];
 
 sig getBookingInfo : ([Booking], Time) ~> Maybe (Booking)
 fun getBookingInfo(bookings, time) {
@@ -145,13 +151,15 @@ fun mkRows(times, roomStatus) {
                     map(fun(status) {
                         switch (getBookingInfo(status.bookings, x)) {
                            case Nothing ->
-                             (bookingID = (-1),
+                             (roomID = status.roomID,
+                              bookingID = (-1),
                               name = status.name,
                               booked = false,
                               booker = "",
                               purpose = "")
                            case Just(x) ->
-                             (bookingID = x.bookingID,
+                             (roomID = status.roomID,
+                              bookingID = x.bookingID,
                               name = status.name,
                               booked = true,
                               booker = x.booker,
@@ -168,11 +176,11 @@ fun htmlTd(roomBooking, bookingTime){
   open MvuAttrs;
   if(roomBooking.booked){
     td(class("table-bordered border-dark table-active table-danger"), textNode(roomBooking.booker) +* textNode(roomBooking.purpose) +*
-       #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, false) }), textNode("Set unbooked")) +*
        button(onClick(fun() { DeleteBooking(roomBooking.bookingID) }), textNode("Delete Booking")))
+       
   }else{
-    td(class("table-bordered border-dark table-danger"), textNode("") )
-       #button(onClick(fun() { SetBooking(roomBooking.name, bookingTime, true) }), textNode("Set booked")))
+    td(class("table-bordered border-dark table-danger"), textNode("") +*
+    button(onClick(fun() { InsertBooking(roomBooking.roomID, bookingTime) }), textNode("Insert Booking")))
   }
 }
 
@@ -203,10 +211,41 @@ fun htmlTable(rooms, rows) {
   table_(class("table table-bordered"), tableHead +* tableBody)
 }
 
+sig insertForm: (Maybe(FormData)) ~> MvuHTML.HTML(Message)
+fun insertForm(formdata){
+  open MvuHTML;
+  open MvuAttrs;
+  switch(formdata){
+    case Nothing -> MvuHTML.empty
+    case Just(formdata) ->
+      input(
+        # Text input box
+        type("input") +@
+        # Input: Raise UpdateContents message whenever box changed
+        onInput(fun(str) { UpdateBooker(str) }) +@
+        # Ensure that the box contents reflect the model
+        value(formdata.booker),
+        MvuHTML.empty) +*
+
+        input(
+        # Text input box
+        type("input") +@
+        # Input: Raise UpdateContents message whenever box changed
+        onInput(fun(str) { UpdatePurpose(str) }) +@
+        # Ensure that the box contents reflect the model
+        value(formdata.purpose),
+        MvuHTML.empty) +*
+
+        # Button raises Submit event
+        button(onClick(fun () { Submit }), textNode("Submit"))
+  }
+}
+
 sig view : (Model) ~> MvuHTML.HTML(Message)
-fun view((times, roomStatus)) {
+fun view((times, roomStatus, formdata)) {
+  open MvuHTML;
   var rows = mkRows(times, roomStatus);
-  htmlTable(roomStatus, rows)
+  htmlTable(roomStatus, rows) +* insertForm(formdata)
 }
 
 ## Kevin TODO: Write the update function
@@ -224,13 +263,60 @@ fun deleteBookingFromRoom(room, bookingID) {
   (room with bookings = filter(fun(b){ b.bookingID <> bookingID }, room.bookings))
 }
 
+sig insertBooking : (FormData) ~> BookingID
+fun insertBooking(formdata) server{
+  var bookingid = insert tableBooking values [(time = formdata.time, booker = formdata.booker, purpose = formdata.purpose)] returning bookingid;
+  insert tableRoomToBooking values [(roomid = formdata.roomid, bookingid = bookingid)];
+  bookingid
+}
+
+sig addBooking : (BookingID, RoomID, Purpose, Time, Booker, [Room]) ~> [Room]
+fun addBooking(bookingID, roomID, purpose, time, booker, room){
+  var newroom = map(fun (r) { 
+    if (r.roomID == roomID) {
+      var newBookings = (bookingID = bookingID, time = time, booker = booker, purpose = purpose) :: r.bookings;
+      (r with bookings =  newBookings)
+    } else {r}
+  }, room);
+  newroom
+}
+
 sig updt : (Message, Model) ~> Model
-fun updt(msg, (times, room)) {
+fun updt(msg, (times, room, formdata)) {
     switch(msg){
       case DeleteBooking(bookingID) ->
         deleteBooking(bookingID);
         var newRooms = map(fun(r){ deleteBookingFromRoom(r, bookingID) }, room);
-        (times, newRooms)
+        (times, newRooms, formdata)
+      case InsertBooking(roomID, time) ->
+        var formdata = (roomid = roomID, time = time, booker = "", purpose = "");
+        (times, room, Just(formdata))
+      case UpdateBooker(str) ->
+      switch(formdata){
+        case Just(formdata) ->
+          (times, room, Just((formdata with booker = str)))
+        case Nothing ->
+          (times, room, formdata)
+      }
+
+      case UpdatePurpose(str) ->
+      switch(formdata){
+        case Just(formdata) ->
+          (times, room, Just((formdata with purpose = str)))
+        case Nothing ->
+          (times, room, formdata)
+      }
+
+      case Submit ->
+        switch(formdata){
+          case Just(formdata) ->
+          var bookingid = insertBooking(formdata);
+          (times, room, Nothing)
+          case Nothing ->
+          (times, room, Nothing)
+        }
+      case _ -> (times, room, formdata)
+
 
     }
 
@@ -239,7 +325,7 @@ fun updt(msg, (times, room)) {
 fun mainPage() {
   var rooms : [Room] = getRooms(tableRoom, tableRoomToBooking, tableBooking);
   var times : [String] = ["10-12", "12-14", "14-16", "16-18"];
-  var model : Model = (times, rooms);
+  var model : Model = (times, rooms, Nothing);
 
   Mvu.runSimple("placeholder", model, view, updt);
   page
