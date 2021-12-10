@@ -311,7 +311,8 @@ fun updt(msg, (times, room, formdata)) {
         switch(formdata){
           case Just(formdata) ->
           var bookingid = insertBooking(formdata);
-          (times, room, Nothing)
+          var newRoom = addBooking(bookingid, formdata.roomid, formdata.purpose, formdata.time, formdata.booker, room);
+          (times, newRoom, Nothing)
           case Nothing ->
           (times, room, Nothing)
         }
